@@ -148,7 +148,7 @@
                     this.loadingElement.textContent = 'マップの読み込みに失敗しました';
                 };
                 
-                this.mapImage.src = './map.jpg'; // キャッシュバスター
+                this.mapImage.src = './map.jpg';
             }
             
             centerImage() {
@@ -395,7 +395,7 @@
                     this.drawStar(
                         this.offsetX + star.x * this.scale,
                         this.offsetY + star.y * this.scale,
-                        15 * this.scale
+                        35 * this.scale
                     );
                 });
             }
