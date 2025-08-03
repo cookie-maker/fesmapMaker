@@ -91,6 +91,7 @@
     <script>
         // 設定定数
         const INITIAL_SCALE = 1.0; // 初期拡大率（手動調節用）
+        const STAR_SIZE = 35; // 星のサイズ（定数化）
         
         class MapMaker {
             constructor() {
@@ -395,7 +396,7 @@
                     this.drawStar(
                         this.offsetX + star.x * this.scale,
                         this.offsetY + star.y * this.scale,
-                        35 * this.scale
+                        STAR_SIZE * this.scale
                     );
                 });
             }
@@ -454,7 +455,13 @@
                 
                 // 星を元画像サイズで描画
                 this.stars.forEach(star => {
-                    this.drawStarOnContext(saveCtx, star.x, star.y, 15);
+                    // 表示と同じサイズで描画
+                    this.drawStarOnContext(
+                        saveCtx,
+                        star.x,
+                        star.y,
+                        STAR_SIZE // 保存時も定数
+                    );
                 });
                 
                 // ファイル名を生成
