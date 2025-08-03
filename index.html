@@ -460,15 +460,14 @@
                 
                 const filename = `Map_${year}-${month}-${day}_${hours}:${minutes}:${seconds}.jpg`;
                 
-                // ダウンロード
-                saveCanvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                }, 'image/jpeg', 0.95);
+                // iPhoneの写真に保存しやすい方法
+                const url = saveCanvas.toDataURL('image/jpeg', 0.95);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
             }
             
             drawStarOnContext(ctx, x, y, size) {
