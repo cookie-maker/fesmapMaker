@@ -461,7 +461,7 @@
                 const filename = `Map_${year}-${month}-${day}_${hours}:${minutes}:${seconds}.jpg`;
                 
                 // iPhoneの写真に保存しやすい方法
-                const url = saveCanvas.toDataURL('image/jpeg', 0.95);
+                const url = saveCanvas.toDataURL('image/png');
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filename;
