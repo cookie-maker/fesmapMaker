@@ -401,29 +401,37 @@
             }
             
             drawStar(x, y, size) {
-                this.ctx.save();
+                this.drawStarCommon(this.ctx, x, y, size);
+            }
+            
+            drawStarOnContext(ctx, x, y, size) {
+                this.drawStarCommon(ctx, x, y, size);
+            }
+            
+            drawStarCommon(ctx, x, y, size) {
+                ctx.save();
 
                 // 星の影
-                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                this.ctx.shadowBlur = 3;
-                this.ctx.shadowOffsetX = 2;
-                this.ctx.shadowOffsetY = 2;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 3;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
 
                 // フォント設定
-                this.ctx.font = `${size * 2}px Arial`;
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
+                ctx.font = `${size * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
 
-                // 枠
-                this.ctx.lineWidth = 5; // 枠の太さ
-                this.ctx.strokeStyle = '#FF0000'; 
-                this.ctx.strokeText('★', x, y);
+                // 枠線
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = '#FF0000';
+                ctx.strokeText('★', x, y);
 
                 // 星の色
-                this.ctx.fillStyle = '#FFFF00'; 
-                this.ctx.fillText('★', x, y);
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillText('★', x, y);
 
-                this.ctx.restore();
+                ctx.restore();
             }
             
             clearStars() {
@@ -464,27 +472,6 @@
                 a.download = filename;
                 a.href = saveCanvas.toDataURL('image/jpeg', 0.95);
                 a.click();
-            }
-            
-            drawStarOnContext(ctx, x, y, size) {
-                ctx.save();
-                
-                // 星の影
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                ctx.shadowBlur = 3;
-                ctx.shadowOffsetX = 2;
-                ctx.shadowOffsetY = 2;
-                
-                // フォント設定
-                ctx.font = `${size * 2}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#FF0000'; // 赤色
-                
-                // 星文字を描画
-                ctx.fillText('★', x, y);
-                
-                ctx.restore();
             }
         }
         
