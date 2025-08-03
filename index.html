@@ -402,22 +402,27 @@
             
             drawStar(x, y, size) {
                 this.ctx.save();
-                
+
                 // 星の影
                 this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
                 this.ctx.shadowBlur = 3;
                 this.ctx.shadowOffsetX = 2;
                 this.ctx.shadowOffsetY = 2;
-                
+
                 // フォント設定
                 this.ctx.font = `${size * 2}px Arial`;
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'middle';
+
+                // 白い枠
+                this.ctx.lineWidth = 4; // 枠の太さ
+                this.ctx.strokeStyle = '#FFFFFF'; // 白色
+                this.ctx.strokeText('★', x, y);
+
+                // 星の色
                 this.ctx.fillStyle = '#FF0000'; // 赤色
-                
-                // 星文字を描画
                 this.ctx.fillText('★', x, y);
-                
+
                 this.ctx.restore();
             }
             
