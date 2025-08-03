@@ -92,6 +92,7 @@
         // 設定定数
         const INITIAL_SCALE = 1.0; // 初期拡大率（手動調節用）
         const STAR_SIZE = 35; // 星のサイズ（定数化）
+        const OUTPUT_SCALE = 0.5; // 保存画像の縮小率（例: 0.5で半分のサイズ）
         
         class MapMaker {
             constructor() {
@@ -447,20 +448,23 @@
                 const saveCanvas = document.createElement('canvas');
                 const saveCtx = saveCanvas.getContext('2d');
                 
-                saveCanvas.width = this.mapImage.width;
-                saveCanvas.height = this.mapImage.height;
+                saveCanvas.width = this.mapImage.width * OUTPUT_SCALE;
+                saveCanvas.height = this.mapImage.height * OUTPUT_SCALE;
                 
-                // 元画像を描画
-                saveCtx.drawImage(this.mapImage, 0, 0);
+                // 元画像を描画（縮小）
+                saveCtx.drawImage(
+                    this.mapImage,
+                    0, 0, this.mapImage.width, this.mapImage.height,
+                    0, 0, saveCanvas.width, saveCanvas.height
+                );
                 
-                // 星を元画像サイズで描画
+                // 星を元画像サイズで描画（位置・サイズも縮小）
                 this.stars.forEach(star => {
-                    // 表示と同じサイズで描画
                     this.drawStarOnContext(
                         saveCtx,
-                        star.x,
-                        star.y,
-                        STAR_SIZE // 保存時も定数
+                        star.x * OUTPUT_SCALE,
+                        star.y * OUTPUT_SCALE,
+                        STAR_SIZE * OUTPUT_SCALE
                     );
                 });
                 
