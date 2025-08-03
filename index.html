@@ -156,7 +156,7 @@
             centerImage() {
                 if (!this.mapImage.complete) return;
                 
-                // 定数で設定された拡大率を使用
+                // 定数で設定された拠大率を使用
                 this.scale = INITIAL_SCALE;
                 
                 // 中央に配置
@@ -458,6 +458,30 @@
                     0, 0, saveCanvas.width, saveCanvas.height
                 );
                 
+                // 日付情報（1回だけ宣言）
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                
+                // 左上に日本時間で日付を描画 → 右上に変更
+                const dateText = `${year}年${month}月${day}日 ${hours}:${minutes}時点`;
+                saveCtx.save();
+                saveCtx.font = `${24 * OUTPUT_SCALE}px Arial`;
+                saveCtx.fillStyle = 'rgba(255,255,255,0.8)';
+                const textWidth = saveCtx.measureText(dateText).width;
+                const textHeight = 40 * OUTPUT_SCALE;
+                const x = saveCanvas.width - textWidth - 20;
+                const y = 0;
+                saveCtx.fillRect(x, y, textWidth + 20, textHeight);
+                saveCtx.fillStyle = '#333';
+                saveCtx.textBaseline = 'top';
+                saveCtx.fillText(dateText, x + 10, y + 10);
+                saveCtx.restore();
+                
                 // 星を元画像サイズで描画（位置・サイズも縮小）
                 this.stars.forEach(star => {
                     this.drawStarOnContext(
@@ -469,15 +493,7 @@
                 });
                 
                 // ファイル名を生成
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                const hours = String(now.getHours()).padStart(2, '0');
-                const minutes = String(now.getMinutes()).padStart(2, '0');
-                const seconds = String(now.getSeconds()).padStart(2, '0');
-                
-                const filename = `Map_${year}-${month}-${day}_${hours}:${minutes}:${seconds}.jpg`;
+                const filename = `Map_${year}${month}${day}${hours}${minutes}${seconds}.jpg`;
                 
                 const a = document.createElement('a');
                 a.download = filename;
