@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Maker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #mapCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+        }
+
+        .controls {
+            background-color: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .btn:active {
+            background-color: #004085;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <button class="btn" onclick="saveImage()">画像を保存</button>
+        </div>
+        <div class="canvas-container">
+            <canvas id="mapCanvas"></canvas>
+            <div id="loading" class="loading">マップを読み込んでいます...</div>
+        </div>
+    </div>
+
+    <script>
+        // 設定定数
+        const INITIAL_SCALE = 0.7; // 初期拡大率（手動調節用）
+        const STAR_SIZE = 33; // 星のサイズ（定数化）
+        const OUTPUT_SCALE = 0.5; // 保存画像の縮小率（例: 0.5で半分のサイズ）
+        
+        class MapMaker {
+            constructor() {
+                this.canvas = document.getElementById('mapCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.loadingElement = document.getElementById('loading');
+                
+                this.mapImage = new Image();
+                this.mapImage.crossOrigin = 'anonymous';
+                
+                // 変換パラメータ
+                this.scale = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                
+                // タッチ関連
+                this.isDragging = false;
+                this.lastTouchDistance = 0;
+                this.lastTouchCenter = { x: 0, y: 0 };
+                this.dragStart = { x: 0, y: 0 };
+                
+                // 星の位置（元画像座標系で保存）
+                this.stars = [];
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupCanvas();
+                this.loadMapImage();
+                this.setupEventListeners();
+            }
+            
+            setupCanvas() {
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+                
+                window.addEventListener('resize', () => {
+                    this.canvas.width = container.clientWidth;
+                    this.canvas.height = container.clientHeight;
+                    this.centerImage();
+                    this.draw();
+                });
+            }
+            
+            loadMapImage() {
+                this.mapImage.onload = () => {
+                    this.loadingElement.style.display = 'none';
+                    this.centerImage();
+                    this.draw();
+                };
+                
+                this.mapImage.onerror = () => {
+                    this.loadingElement.textContent = 'マップの読み込みに失敗しました';
+                };
+                
+                this.mapImage.src = 'https://cookie-maker.github.io/fesmapMaker/map.jpg?raw=true';
+                //this.mapImage.src = './map.jpg';
+            }
+            
+            centerImage() {
+                if (!this.mapImage.complete) return;
+                
+                // 定数で設定された拠大率を使用
+                this.scale = INITIAL_SCALE;
+                
+                // 中央に配置
+                const scaledWidth = this.mapImage.width * this.scale;
+                const scaledHeight = this.mapImage.height * this.scale;
+                this.offsetX = (this.canvas.width - scaledWidth) / 2;
+                this.offsetY = (this.canvas.height - scaledHeight) / 2;
+            }
+            
+            setupEventListeners() {
+                // タッチイベント
+                this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+                this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+                this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+                
+                // マウスイベント（デスクトップ用）
+                this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
+                
+                // クリック/タップで星を配置（イベントリスナーは削除）
+                // this.canvas.addEventListener('click', this.handleClick.bind(this));
+            }
+            
+            handleTouchStart(e) {
+                e.preventDefault();
+                
+                if (e.touches.length === 1) {
+                    this.isDragging = true;
+                    this.dragStart = {
+                        x: e.touches[0].clientX - this.offsetX,
+                        y: e.touches[0].clientY - this.offsetY
+                    };
+                    // タッチ開始時刻を記録
+                    this.touchStartTime = Date.now();
+                    this.touchStartPos = {
+                        x: e.touches[0].clientX,
+                        y: e.touches[0].clientY
+                    };
+                } else if (e.touches.length === 2) {
+                    this.isDragging = false;
+                    this.lastTouchDistance = this.getTouchDistance(e.touches);
+                    this.lastTouchCenter = this.getTouchCenter(e.touches);
+                }
+            }
+            
+            handleTouchMove(e) {
+                e.preventDefault();
+                
+                if (e.touches.length === 1 && this.isDragging) {
+                    this.offsetX = e.touches[0].clientX - this.dragStart.x;
+                    this.offsetY = e.touches[0].clientY - this.dragStart.y;
+                    this.draw();
+                } else if (e.touches.length === 2) {
+                    const currentDistance = this.getTouchDistance(e.touches);
+                    const currentCenter = this.getTouchCenter(e.touches);
+                    
+                    if (this.lastTouchDistance > 0) {
+                        const scaleChange = currentDistance / this.lastTouchDistance;
+                        const newScale = this.scale * scaleChange;
+                        
+                        // スケールの制限
+                        if (newScale >= 0.1 && newScale <= 5) {
+                            // ズーム中心を考慮した位置調整
+                            this.offsetX = currentCenter.x - (currentCenter.x - this.offsetX) * scaleChange;
+                            this.offsetY = currentCenter.y - (currentCenter.y - this.offsetY) * scaleChange;
+                            this.scale = newScale;
+                        }
+                    }
+                    
+                    this.lastTouchDistance = currentDistance;
+                    this.lastTouchCenter = currentCenter;
+                    this.draw();
+                }
+            }
+            
+            handleTouchEnd(e) {
+                e.preventDefault();
+                
+                // タップ判定（短時間で移動距離が少ない場合）
+                if (this.isDragging && this.touchStartTime && this.touchStartPos) {
+                    const touchEndTime = Date.now();
+                    const touchDuration = touchEndTime - this.touchStartTime;
+                    
+                    if (e.changedTouches.length > 0) {
+                        const touchEndPos = {
+                            x: e.changedTouches[0].clientX,
+                            y: e.changedTouches[0].clientY
+                        };
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(touchEndPos.x - this.touchStartPos.x, 2) +
+                            Math.pow(touchEndPos.y - this.touchStartPos.y, 2)
+                        );
+                        
+                        // 300ms以内かつ移動距離10px以下の場合はタップと判定
+                        if (touchDuration < 300 && distance < 10) {
+                            this.handleTap(e.changedTouches[0]);
+                        }
+                    }
+                }
+                
+                this.isDragging = false;
+                this.lastTouchDistance = 0;
+                this.touchStartTime = null;
+                this.touchStartPos = null;
+            }
+            
+            handleMouseDown(e) {
+                this.isDragging = true;
+                this.dragStart = {
+                    x: e.clientX - this.offsetX,
+                    y: e.clientY - this.offsetY
+                };
+                // マウス押下時刻を記録
+                this.mouseDownTime = Date.now();
+                this.mouseDownPos = { x: e.clientX, y: e.clientY };
+            }
+            
+            handleMouseMove(e) {
+                if (this.isDragging) {
+                    this.offsetX = e.clientX - this.dragStart.x;
+                    this.offsetY = e.clientY - this.dragStart.y;
+                    this.draw();
+                }
+            }
+            
+            handleMouseUp(e) {
+                // クリック判定（短時間で移動距離が少ない場合）
+                if (this.isDragging && this.mouseDownTime && this.mouseDownPos) {
+                    const mouseUpTime = Date.now();
+                    const mouseDuration = mouseUpTime - this.mouseDownTime;
+                    
+                    const distance = Math.sqrt(
+                        Math.pow(e.clientX - this.mouseDownPos.x, 2) +
+                        Math.pow(e.clientY - this.mouseDownPos.y, 2)
+                    );
+                    
+                    // 300ms以内かつ移動距離5px以下の場合はクリックと判定
+                    if (mouseDuration < 300 && distance < 5) {
+                        this.handleClick(e);
+                    }
+                }
+                
+                this.isDragging = false;
+                this.mouseDownTime = null;
+                this.mouseDownPos = null;
+            }
+            
+            handleWheel(e) {
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                const scaleChange = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = this.scale * scaleChange;
+                
+                if (newScale >= 0.1 && newScale <= 5) {
+                    this.offsetX = mouseX - (mouseX - this.offsetX) * scaleChange;
+                    this.offsetY = mouseY - (mouseY - this.offsetY) * scaleChange;
+                    this.scale = newScale;
+                    this.draw();
+                }
+            }
+            
+            handleClick(e) {
+                // この関数は直接呼ばれないようにする（handleMouseUpから呼ばれる）
+                const rect = this.canvas.getBoundingClientRect();
+                const canvasX = e.clientX - rect.left;
+                const canvasY = e.clientY - rect.top;
+                
+                // キャンバス座標を元画像座標に変換
+                const imageX = (canvasX - this.offsetX) / this.scale;
+                const imageY = (canvasY - this.offsetY) / this.scale;
+                
+                // 画像の範囲内かチェック
+                if (imageX >= 0 && imageX <= this.mapImage.width && 
+                    imageY >= 0 && imageY <= this.mapImage.height) {
+                    // 星を1つだけに制限（既存の星を削除して新しい位置に配置）
+                    this.stars = [{ x: imageX, y: imageY }];
+                    this.draw();
+                }
+            }
+            
+            handleTap(touch) {
+                const rect = this.canvas.getBoundingClientRect();
+                const canvasX = touch.clientX - rect.left;
+                const canvasY = touch.clientY - rect.top;
+                
+                // キャンバス座標を元画像座標に変換
+                const imageX = (canvasX - this.offsetX) / this.scale;
+                const imageY = (canvasY - this.offsetY) / this.scale;
+                
+                // 画像の範囲内かチェック
+                if (imageX >= 0 && imageX <= this.mapImage.width && 
+                    imageY >= 0 && imageY <= this.mapImage.height) {
+                    // 星を1つだけに制限（既存の星を削除して新しい位置に配置）
+                    this.stars = [{ x: imageX, y: imageY }];
+                    this.draw();
+                }
+            }
+            
+            getTouchDistance(touches) {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            getTouchCenter(touches) {
+                return {
+                    x: (touches[0].clientX + touches[1].clientX) / 2,
+                    y: (touches[0].clientY + touches[1].clientY) / 2
+                };
+            }
+            
+            draw() {
+                if (!this.mapImage.complete) return;
+                
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 背景
+                this.ctx.fillStyle = '#f0f0f0';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // マップ画像を描画
+                this.ctx.drawImage(
+                    this.mapImage,
+                    this.offsetX,
+                    this.offsetY,
+                    this.mapImage.width * this.scale,
+                    this.mapImage.height * this.scale
+                );
+                
+                // 星を描画
+                this.stars.forEach(star => {
+                    this.drawStar(
+                        this.offsetX + star.x * this.scale,
+                        this.offsetY + star.y * this.scale,
+                        STAR_SIZE * this.scale
+                    );
+                });
+            }
+            
+            drawStar(x, y, size) {
+                this.drawStarCommon(this.ctx, x, y, size);
+            }
+            
+            drawStarOnContext(ctx, x, y, size) {
+                this.drawStarCommon(ctx, x, y, size);
+            }
+            
+            drawStarCommon(ctx, x, y, size) {
+                ctx.save();
+
+                // 星の影
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 3;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+
+                // フォント設定
+                ctx.font = `${size * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // 枠線
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = '#FF0000';
+                ctx.strokeText('★', x, y);
+
+                // 星の色
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillText('★', x, y);
+
+                ctx.restore();
+            }
+            
+            clearStars() {
+                this.stars = [];
+                this.draw();
+            }
+            
+            saveImage() {
+                if (!this.mapImage.complete) return;
+
+                // 保存用のキャンバスを作成
+                const saveCanvas = document.createElement('canvas');
+                const saveCtx = saveCanvas.getContext('2d');
+
+                saveCanvas.width = this.mapImage.width * OUTPUT_SCALE;
+                saveCanvas.height = this.mapImage.height * OUTPUT_SCALE;
+
+                // 元画像を描画（縮小）
+                saveCtx.drawImage(
+                    this.mapImage,
+                    0, 0, this.mapImage.width, this.mapImage.height,
+                    0, 0, saveCanvas.width, saveCanvas.height
+                );
+
+                // 日付情報（1回だけ宣言）
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+
+                // 右上に日付を描画
+                const dateText = `${year}年${month}月${day}日 ${hours}:${minutes}時点`;
+                saveCtx.save();
+                saveCtx.font = `${24 * OUTPUT_SCALE}px Arial`;
+                saveCtx.fillStyle = 'rgba(255,255,255,0.8)';
+                const textWidth = saveCtx.measureText(dateText).width;
+                const textHeight = 40 * OUTPUT_SCALE;
+                const x = saveCanvas.width - textWidth - 20;
+                const y = 0;
+                saveCtx.fillRect(x, y, textWidth + 20, textHeight);
+                saveCtx.fillStyle = '#333';
+                saveCtx.textBaseline = 'top';
+                saveCtx.fillText(dateText, x + 10, y + 10);
+                saveCtx.restore();
+
+                // 星を元画像サイズで描画（位置・サイズも縮小）
+                this.stars.forEach(star => {
+                    this.drawStarOnContext(
+                        saveCtx,
+                        star.x * OUTPUT_SCALE,
+                        star.y * OUTPUT_SCALE,
+                        STAR_SIZE * OUTPUT_SCALE
+                    );
+                });
+
+                // ファイル名を生成
+                const filename = `Map_${year}${month}${day}${hours}${minutes}${seconds}.jpg`;
+
+                // canvas画像をBlob化してFileとしてshare
+                saveCanvas.toBlob(blob => {
+                    const file = new File([blob], filename, { type: 'image/jpeg' });
+                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'マップ画像',
+                            text: '作成したマップ画像を共有します。',
+                        });
+                    } else {
+                        // fallback: 従来通りダウンロード
+                        const a = document.createElement('a');
+                        a.download = filename;
+                        a.href = URL.createObjectURL(blob);
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    }
+                }, 'image/jpeg', 0.95);
+            }
+        }
+        
+        // グローバル関数
+        let mapMaker;
+        
+        function saveImage() {
+            if (mapMaker) {
+                mapMaker.saveImage();
+            }
+        }
+        
+        // アプリケーション開始
+        document.addEventListener('DOMContentLoaded', () => {
+            mapMaker = new MapMaker();
+        });
+    </script>
+</body>
+</html>
