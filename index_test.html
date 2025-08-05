@@ -499,7 +499,16 @@
                 // canvas画像をBlob化してFileとしてshare
                 saveCanvas.toBlob(blob => {
                     const file = new File([blob], filename, { type: 'image/jpeg' });
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+
+                    // iOS判定
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+                    if (
+                        isIOS &&
+                        navigator.share &&
+                        navigator.canShare &&
+                        navigator.canShare({ files: [file] })
+                    ) {
                         navigator.share({
                             files: [file],
                             title: 'マップ画像',
