@@ -249,6 +249,7 @@
                     };
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
+                    this.wasPinching = true;
                     this.lastTouchDistance = this.getTouchDistance(e.touches);
                     this.lastTouchCenter = this.getTouchCenter(e.touches);
                 }
@@ -287,8 +288,8 @@
             handleTouchEnd(e) {
                 e.preventDefault();
 
-                // タップ判定（短時間で移動距離が少ない場合）
-                if (this.isDragging && this.touchStartTime && this.touchStartPos) {
+                // タップ判定（短時間で移動距離が少ない場合、ピンチ操作後は除外）
+                if (this.isDragging && this.touchStartTime && this.touchStartPos && !this.wasPinching) {
                     const touchEndTime = Date.now();
                     const touchDuration = touchEndTime - this.touchStartTime;
 
@@ -316,6 +317,7 @@
                 this.touchStartPos = null;
 
                 // ピンチズーム後に1本指が残っている場合はそのままドラッグ継続できるよう再設定
+                // wasPinching フラグは保持したままにしてタップ誤検知を防ぐ
                 if (e.touches.length === 1) {
                     this.isDragging = true;
                     this.dragStart = {
@@ -327,6 +329,9 @@
                         x: e.touches[0].clientX,
                         y: e.touches[0].clientY
                     };
+                } else if (e.touches.length === 0) {
+                    // 全指離れたらピンチフラグをリセット
+                    this.wasPinching = false;
                 }
             }
 
