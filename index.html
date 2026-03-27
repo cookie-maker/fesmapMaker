@@ -46,7 +46,9 @@
             box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: center;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -68,6 +70,43 @@
             background-color: #004085;
         }
 
+        .btn-zoom {
+            padding: 12px 18px;
+            font-size: 20px;
+            background-color: #6c757d;
+            min-width: 52px;
+        }
+
+        .btn-zoom:hover {
+            background-color: #545b62;
+        }
+
+        .btn-zoom:active {
+            background-color: #3d4349;
+        }
+
+        .btn-reset {
+            padding: 12px 16px;
+            font-size: 14px;
+            background-color: #6c757d;
+        }
+
+        .btn-reset:hover {
+            background-color: #545b62;
+        }
+
+        .btn-reset:active {
+            background-color: #3d4349;
+        }
+
+        .zoom-label {
+            font-size: 13px;
+            color: #666;
+            min-width: 52px;
+            text-align: center;
+            user-select: none;
+        }
+
         .loading {
             position: absolute;
             top: 50%;
@@ -82,6 +121,10 @@
 <body>
     <div class="container">
         <div class="controls">
+            <button class="btn btn-zoom" onclick="zoomOut()" title="縮小">－</button>
+            <span class="zoom-label" id="zoomLabel">100%</span>
+            <button class="btn btn-zoom" onclick="zoomIn()" title="拡大">＋</button>
+            <button class="btn btn-reset" onclick="resetView()" title="表示リセット">リセット</button>
             <button class="btn" onclick="saveImage()">画像を保存</button>
         </div>
         <div class="canvas-container">
@@ -95,6 +138,7 @@
         const INITIAL_SCALE = 1.0; // 初期拡大率（手動調節用）
         const STAR_SIZE = 17; // 星のサイズ（定数化）
         const OUTPUT_SCALE = 0.7; // 保存画像の縮小率（例: 0.5で半分のサイズ）
+        const BOTTOM_MARGIN = 68; // 保存画像の下部余白サイズ（調整可能）
 
         class MapMaker {
             constructor() {
@@ -134,9 +178,13 @@
                 this.canvas.height = container.clientHeight;
 
                 window.addEventListener('resize', () => {
+                    const oldWidth = this.canvas.width;
+                    const oldHeight = this.canvas.height;
                     this.canvas.width = container.clientWidth;
                     this.canvas.height = container.clientHeight;
-                    this.centerImage();
+                    // スケールはリセットせず、canvas サイズ変化分だけ offset を補正
+                    this.offsetX += (this.canvas.width - oldWidth) / 2;
+                    this.offsetY += (this.canvas.height - oldHeight) / 2;
                     this.draw();
                 });
             }
@@ -201,6 +249,7 @@
                     };
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
+                    this.wasPinching = true;
                     this.lastTouchDistance = this.getTouchDistance(e.touches);
                     this.lastTouchCenter = this.getTouchCenter(e.touches);
                 }
@@ -239,8 +288,8 @@
             handleTouchEnd(e) {
                 e.preventDefault();
 
-                // タップ判定（短時間で移動距離が少ない場合）
-                if (this.isDragging && this.touchStartTime && this.touchStartPos) {
+                // タップ判定（短時間で移動距離が少ない場合、ピンチ操作後は除外）
+                if (this.isDragging && this.touchStartTime && this.touchStartPos && !this.wasPinching) {
                     const touchEndTime = Date.now();
                     const touchDuration = touchEndTime - this.touchStartTime;
 
@@ -266,6 +315,24 @@
                 this.lastTouchDistance = 0;
                 this.touchStartTime = null;
                 this.touchStartPos = null;
+
+                // ピンチズーム後に1本指が残っている場合はそのままドラッグ継続できるよう再設定
+                // wasPinching フラグは保持したままにしてタップ誤検知を防ぐ
+                if (e.touches.length === 1) {
+                    this.isDragging = true;
+                    this.dragStart = {
+                        x: e.touches[0].clientX - this.offsetX,
+                        y: e.touches[0].clientY - this.offsetY
+                    };
+                    this.touchStartTime = Date.now();
+                    this.touchStartPos = {
+                        x: e.touches[0].clientX,
+                        y: e.touches[0].clientY
+                    };
+                } else if (e.touches.length === 0) {
+                    // 全指離れたらピンチフラグをリセット
+                    this.wasPinching = false;
+                }
             }
 
             handleMouseDown(e) {
@@ -376,8 +443,43 @@
                 };
             }
 
+            zoomIn() {
+                const center = { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+                const scaleChange = 1.25;
+                const newScale = this.scale * scaleChange;
+                if (newScale <= 5) {
+                    this.offsetX = center.x - (center.x - this.offsetX) * scaleChange;
+                    this.offsetY = center.y - (center.y - this.offsetY) * scaleChange;
+                    this.scale = newScale;
+                    this.draw();
+                }
+            }
+
+            zoomOut() {
+                const center = { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+                const scaleChange = 0.8;
+                const newScale = this.scale * scaleChange;
+                if (newScale >= 0.1) {
+                    this.offsetX = center.x - (center.x - this.offsetX) * scaleChange;
+                    this.offsetY = center.y - (center.y - this.offsetY) * scaleChange;
+                    this.scale = newScale;
+                    this.draw();
+                }
+            }
+
+            resetView() {
+                this.centerImage();
+                this.draw();
+            }
+
             draw() {
                 if (!this.mapImage.complete) return;
+
+                // ズームラベル更新
+                const zoomLabel = document.getElementById('zoomLabel');
+                if (zoomLabel) {
+                    zoomLabel.textContent = Math.round(this.scale * 100) + '%';
+                }
 
                 this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -450,14 +552,21 @@
                 const saveCanvas = document.createElement('canvas');
                 const saveCtx = saveCanvas.getContext('2d');
 
-                saveCanvas.width = this.mapImage.width * OUTPUT_SCALE;
-                saveCanvas.height = this.mapImage.height * OUTPUT_SCALE;
+                const imageWidth = this.mapImage.width * OUTPUT_SCALE;
+                const imageHeight = this.mapImage.height * OUTPUT_SCALE;
+
+                saveCanvas.width = imageWidth;
+                saveCanvas.height = imageHeight + BOTTOM_MARGIN * OUTPUT_SCALE;
+
+                // 背景色を白で塗りつぶし
+                saveCtx.fillStyle = '#ffffff';
+                saveCtx.fillRect(0, 0, saveCanvas.width, saveCanvas.height);
 
                 // 元画像を描画（縮小）
                 saveCtx.drawImage(
                     this.mapImage,
                     0, 0, this.mapImage.width, this.mapImage.height,
-                    0, 0, saveCanvas.width, saveCanvas.height
+                    0, 0, imageWidth, imageHeight
                 );
 
                 // 日付情報（1回だけ宣言）
@@ -493,6 +602,26 @@
                         STAR_SIZE * OUTPUT_SCALE
                     );
                 });
+
+                // 下部余白にテキストを描画
+                saveCtx.save();
+                const fontSize = Math.round(16 * OUTPUT_SCALE);
+                saveCtx.font = `${fontSize}px Arial`;
+                saveCtx.fillStyle = '#333333';
+                saveCtx.textAlign = 'center';
+                saveCtx.textBaseline = 'middle';
+
+                let textY = imageHeight + (BOTTOM_MARGIN * OUTPUT_SCALE) * 0.2 + fontSize * 0.5 - 8;
+                saveCtx.fillText('ノウハウ図書館', saveCanvas.width / 2, textY);
+
+                textY += fontSize + 4;
+                saveCtx.fillText('『ユニバで居場所を伝えるツール』', saveCanvas.width / 2, textY);
+
+                const smallFontSize = Math.round(fontSize * 0.8);
+                saveCtx.font = `${smallFontSize}px Arial`;
+                saveCtx.fillStyle = '#666666';
+                saveCtx.fillText('SupportedBy くき@2025.5月サポメン', saveCanvas.width / 2, textY + fontSize + 4);
+                saveCtx.restore();
 
                 // ファイル名を生成
                 const filename = `Map_${year}${month}${day}${hours}${minutes}${seconds}.jpg`;
@@ -533,6 +662,24 @@
         function saveImage() {
             if (mapMaker) {
                 mapMaker.saveImage();
+            }
+        }
+
+        function zoomIn() {
+            if (mapMaker) {
+                mapMaker.zoomIn();
+            }
+        }
+
+        function zoomOut() {
+            if (mapMaker) {
+                mapMaker.zoomOut();
+            }
+        }
+
+        function resetView() {
+            if (mapMaker) {
+                mapMaker.resetView();
             }
         }
 
